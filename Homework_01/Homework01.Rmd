@@ -1,0 +1,130 @@
+---
+title: "DATA 608 - Homework-01"
+author: "Ahmed Sajjad"
+date: "September 05, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 3000)
+```
+
+## <span style="color:blue"><b>Principles of Data Visualization and Introduction to ggplot2</b></span>
+<div id="Question_1_1"><img src="HW01_01.png" alt="HW01_01"></div>
+<div id="Question_1_2"><img src="HW01_02.png" alt="HW01_02"></div>
+
+##### <span style="color:blue"><b>The following <u>dplyr</u> functions are used in this homework:</b></span>
+<table border="1" width="200">
+<tr><th><b>dplyr</b></th></tr>
+<tr><td><b>&nbsp;select</b></td></tr>
+<tr><td><b>&nbsp;filter</b></td></tr>
+<tr><td><b>&nbsp;arrange</b></td></tr>
+<tr><td><b>&nbsp;mutate</td></tr>
+<tr><td><b>&nbsp;summarise</td></tr>
+<tr><td><b>&nbsp;group_by</td></tr>
+</table>
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+##### <span style="color:blue"><b>Read the data from the .CSV file into R.</b></span>
+```{r}
+inc5000_df = read.csv(file="Data/inc5000_data.csv", header=TRUE, sep=",")
+nrow(inc5000_df)
+head(inc5000_df, 20)
+```
+
+##### <span style="color:red"><b> (1) Create a graph that shows the distribution of companies in the dataset by State (ie how many are in each state). There are a lot of States, so consider which axis you should use assuming I am using a 'portrait' oriented screen (ie taller than wide).</b></span>
+
+```{r}
+inc5000State_df = as.data.frame(inc5000_df %>% group_by(State) %>% summarise( TotalCompanies = n()))
+inc5000State_df = arrange(inc5000State_df, desc(TotalCompanies))
+nrow(inc5000State_df)
+print(inc5000State_df)
+
+ggplot(data = inc5000State_df, aes(x=reorder(State, TotalCompanies) , y=TotalCompanies, fill=TotalCompanies)) +
+      geom_bar(stat="identity", position=position_dodge(), colour="black", width = 0.80) +  
+      scale_fill_gradient(low="light green", high="dark green") + coord_flip() + 
+      scale_y_continuous(breaks = scales::pretty_breaks(n = 20)) + guides(fill=FALSE) +
+      ggtitle("Distribution of Companies") + xlab("State") + ylab("Total Companies") 
+
+ggsave("Figure1.png")
+
+ggplot(data = inc5000State_df, aes(x=reorder(State, TotalCompanies) , y=TotalCompanies, fill=TotalCompanies)) +
+      geom_point() +
+      scale_fill_gradient(low="light green", high="dark green") + coord_flip() + 
+      scale_y_continuous(breaks = scales::pretty_breaks(n = 20)) + guides(fill=FALSE) +
+      ggtitle("Distribution of Companies") + xlab("State") + ylab("Total Companies") 
+
+ggsave("Figure11.png")
+```
+
+##### <span style="color:red"><b> (2) Let's dig in on the State with the 3rd most companies in the data set. Imagine you work for the state and are interested in how many people are employed by companies in different industries. Create a plot of average employment by  industry for companies in this state (only use cases with full data (use R's complete.cases() function). Your graph show show how variable the ranges are, and exlude outliers.</b></span>
+
+```{r}
+nrow(inc5000_df)
+incComplete_df <- as.data.frame(inc5000_df %>% filter(complete.cases(.))) #only include complete cases
+nrow(incComplete_df)
+incCompleteNY_df = filter(incComplete_df, State == "NY")
+incCompleteNY_df = select(incCompleteNY_df, matches("Name|Growth_Rate|Revenue|Industry|Employees|State"))
+incCompleteNY_df = arrange(incCompleteNY_df, Industry)
+nrow(incCompleteNY_df)
+print(incCompleteNY_df)
+
+incCompleteNY_Group_df = as.data.frame(incCompleteNY_df %>% group_by(Industry) 
+                              %>% summarise( TotalEmployees = sum(Employees), TotalCompanies = n()))
+incCompleteNY_Group_df = arrange(incCompleteNY_Group_df, desc(TotalEmployees))
+print(incCompleteNY_Group_df)
+
+calcAverage = function(employees, companies) {
+  round(employees/companies, 2)
+}
+
+incCompleteNY_Group_df = mutate(incCompleteNY_Group_df, AvgEmployees=calcAverage(TotalEmployees, TotalCompanies))
+print (incCompleteNY_Group_df)
+
+ggplot(data = incCompleteNY_Group_df, aes(x=reorder(Industry, AvgEmployees) , y=AvgEmployees, fill=AvgEmployees)) +
+      geom_bar(stat="identity", position=position_dodge(), colour="black", width = 0.80) +  
+      scale_fill_gradient(low="light blue", high="dark blue") +
+      scale_y_continuous(breaks = scales::pretty_breaks(n = 20)) + guides(fill=FALSE) +
+      theme(axis.text.x=element_text(angle=90,hjust=1)) +
+      ggtitle("Average Employment by Industry in NY") + xlab("Industry") + ylab("Average Employment") 
+
+ggsave("Figure2.png")
+```
+
+
+##### <span style="color:red"><b> (3) Now imagine you work for an investor and want to see which industries generate the most revenue per employee. Create a chart that makes this information clear.</b></span>
+
+```{r}
+incComplete_df = arrange(incComplete_df, Industry)
+nrow(incComplete_df)
+
+incComplete_Group_df = as.data.frame(incComplete_df %>% group_by(Industry) 
+                       %>% summarise( TotalEmployees = sum(Employees), TotalRevenue = sum(Revenue), TotalCompanies = n()))
+print(incComplete_Group_df)
+
+calcRevenuePerEmployee = function(TotalRevenue, TotalEmployees) {
+  return (round(TotalRevenue/(TotalEmployees*1000), 2))
+}
+
+incComplete_Group_df = mutate(incComplete_Group_df, RevenuePerEmployee=calcRevenuePerEmployee(TotalRevenue, TotalEmployees))
+incComplete_Group_df = arrange(incComplete_Group_df, desc(RevenuePerEmployee))
+print (incComplete_Group_df)
+
+ggplot(data = incComplete_Group_df, aes(x=reorder(Industry, RevenuePerEmployee) , 
+                                        y=RevenuePerEmployee, fill=RevenuePerEmployee)) +
+      geom_bar(stat="identity", position=position_dodge(), colour="black", width = 0.80) +  
+      scale_fill_gradient(low="purple", high="purple4") + 
+      scale_y_continuous(labels=scales::dollar, breaks = scales::pretty_breaks(n = 10)) + guides(fill=FALSE) +
+      theme(axis.text.x=element_text(angle=90,hjust=1)) +
+      ggtitle("Revenue Per Employee for Industries") + xlab("Industry") + ylab("Revenue Per Employee (Thousands)") 
+
+ggsave("Figure3.png")
+
+```
