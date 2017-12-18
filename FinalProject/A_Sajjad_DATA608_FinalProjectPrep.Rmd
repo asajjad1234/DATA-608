@@ -1,0 +1,214 @@
+---
+title: "DATA 608 - Final Project"
+author: "Ahmed Sajjad"
+date: "December 2, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(comment = NA, echo=TRUE, message = FALSE, warnings = FALSE)
+```
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 3000)
+```
+
+```{r}
+library(dplyr)
+library(stringr)
+```
+### <span style="color:red"><b>Final Project</b></span>
+#### <span style="color:blue"><b>1) Objective:</b></span><br>
+To create a Shiny App/visualization that displays the relationship between different occupations and salary for many years (2007 to 2015).
+
+#### <span style="color:blue"><b>2) Description:</b></span><br>
+ In this project we would like to find those occupations that pay higher wages and salaries. 
+
+#### <span style="color:blue"><b>3) Data Source:</b></span><br>
+Datasets related to occupation and wage estimates are available in the public domain and it can be downloaded from the following site for the years 2007 to 2015:
+<li> Department of Labor Statistics (https://www.bls.gov/oes/tables.htm) </li>
+
+#### <span style="color:blue"><b>4) Research Questions:</b></span><br>
+The following questions will be addressed by this project:
+<li> What are the top 30 occupations reported (for all years)</li>
+<li> For a specific year, find the job title that was paid the highest in a specific occupation</li> 
+<li> Find the salary history of a job title to determine if it is increasing or decreasing</li> 
+
+#### <span style="color:blue"><b>5) Shiny App:</b></span><br>
+The shiny app consists of the following tabs.
+<li> Top Occupations/All Categories</li>
+<li> Top Occupations/Per Category</li>
+<li> Salary History/Occupation</li>
+
+#### <span style="color:blue"><b>6) Data Cleaup/Preparation:</b></span><br>
+The following functions are used to prepare data for the shiny app. All the CSV files for years 2007 to 2015 and read and cleaned.
+
+#### <span style="color:blue"><b>7) CSV Files:</b></span><br>
+This process generates the following CSV files that are used by the Shiny app:
+<li> occupation_df.csv</li>
+<li> salary_major_df.csv</li>
+<li> salary_total_df.csv</li>
+<li> title_df.csv</li>
+<li> year_df.csv</li>
+<br>
+```{r}
+# Function to convert the first Character to Uppercase
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2), sep="", collapse=" ")
+}
+
+# Function to clean the data
+getCleanData <- function(salary_year_df) {
+  salary_year_df <- select(salary_year_df, matches("OCC_CODE|TITLE|OCC_GROUP|TOTAL_EMPLOYEES|SALARY|YEAR"))
+  salary_year_df$OCC_CODE = gsub("\\-", "_", salary_year_df$OCC_CODE)
+  salary_year_df$TITLE = sapply(salary_year_df$TITLE, simpleCap)
+  salary_year_df$TOTAL_EMPLOYEES <- as.numeric(gsub(",", "", salary_year_df$TOTAL_EMPLOYEES))
+  salary_year_df$SALARY <- as.numeric(gsub(",", "", salary_year_df$SALARY))
+  salary_year_df$TITLE  <- gsub("\\*", "", salary_year_df$TITLE)
+  salary_year_df$TITLE  <- gsub("Computer And Information Scientists, Research", 
+                                "Computer And Information Research Scientists", salary_year_df$TITLE)
+  salary_year_df$OCC_CODE <- gsub("29_1121", "29_1181", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("21_1099", "21_1798", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("15_1011", "15_1111", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("15_1199", "15_1199", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("15_1021", "15_1131", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("15_1041", "15_1150", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("15_1051", "15_1121", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("47_4099", "47_4799", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("15_1061", "15_1141", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("51_5022", "51_5111", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("51_9199", "51_9399", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("29_2034", "29_2037", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("29_1111", "29_1141", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("41_9099", "41_9799", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("25_3099", "25_3999", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("11_3042", "11_3131", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("13_1073", "13_1151", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE <- gsub("39_6022", "39_7012", salary_year_df$OCC_CODE)
+  salary_year_df$OCC_CODE_SHORT <- str_sub(as.character(salary_year_df$OCC_CODE), 1, 2)
+  salary_year_df <- arrange(salary_year_df, desc(SALARY))
+  return (salary_year_df)
+}
+
+# Function to get the top 20 rows of the dataset
+get20Lines <- function(salary_year_df) {
+  return (head(salary_year_df, 20))
+}
+
+# Function to print the dataset
+printDataFrameInfo <- function(salary_year_df, numberofRows) {
+  ncol(salary_year_df)
+  nrow(salary_year_df)
+  head(salary_year_df, numberofRows)
+}
+
+# Function to get all occupations (majors)
+getOccupationData <- function(salary_total_df) {
+  occupation_df <- filter(salary_total_df, OCC_GROUP  == "major")
+  occupation_df$TITLE <- gsub(" Occupations", "", occupation_df$TITLE)
+  occupation_df <- arrange(occupation_df, OCC_CODE)
+  occupation_df <- distinct(occupation_df, OCC_CODE, .keep_all = TRUE)
+  occupation_df <- arrange(occupation_df, TITLE)
+  occupation_df <- select(occupation_df,  matches("OCC_CODE|TITLE|OCC_CODE_SHORT"))
+  return (occupation_df)
+}
+
+# Function to get all occupation titles (not majors)
+getTitleData <- function(salary_total_df) {
+  title_df <- filter(salary_total_df, OCC_GROUP  != "major")
+  title_df <- select(title_df, matches("OCC_CODE|TITLE|OCC_CODE_SHORT"))
+  title_df <- distinct(title_df, OCC_CODE, .keep_all = TRUE)
+  title_df <- arrange(title_df, TITLE)
+  return (title_df)
+}
+
+
+# Function to get year dataframe
+getYearData <- function(salary_total_df) {
+  year_df   = distinct(salary_total_df, YEAR)
+  colnames(year_df) = c("YEAR_KEY")
+  year_df$YEAR_VALUE = year_df$YEAR_KEY
+  colnames(year_df) = c("YEAR_KEY", "YEAR_VALUE")
+  return (year_df)
+}
+
+# Step 1: Read the data from different files
+salary_2007_df <- read.csv(file="DATA/CSV/INPUT/SAL_2007.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2008_df <- read.csv(file="DATA/CSV/INPUT/SAL_2008.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2009_df <- read.csv(file="DATA/CSV/INPUT/SAL_2009.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2010_df <- read.csv(file="DATA/CSV/INPUT/SAL_2010.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2011_df <- read.csv(file="DATA/CSV/INPUT/SAL_2011.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2012_df <- read.csv(file="DATA/CSV/INPUT/SAL_2012.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2013_df <- read.csv(file="DATA/CSV/INPUT/SAL_2013.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2014_df <- read.csv(file="DATA/CSV/INPUT/SAL_2014.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+salary_2015_df <- read.csv(file="DATA/CSV/INPUT/SAL_2015.csv", head=TRUE,  sep=",", stringsAsFactors = FALSE)
+
+# Step 2: Clean all datasets
+salary_2007_df <- getCleanData(salary_2007_df)
+salary_2008_df <- getCleanData(salary_2008_df)
+salary_2009_df <- getCleanData(salary_2009_df)
+salary_2010_df <- getCleanData(salary_2010_df)
+salary_2011_df <- getCleanData(salary_2011_df)
+salary_2012_df <- getCleanData(salary_2012_df)
+salary_2013_df <- getCleanData(salary_2013_df)
+salary_2014_df <- getCleanData(salary_2014_df)
+salary_2015_df <- getCleanData(salary_2015_df)
+
+# Step 3: Check the contents of the cleaned dataframes
+printDataFrameInfo(salary_2007_df, 20)
+printDataFrameInfo(salary_2008_df, 20)
+printDataFrameInfo(salary_2009_df, 20)
+printDataFrameInfo(salary_2010_df, 20)
+printDataFrameInfo(salary_2011_df, 20)
+printDataFrameInfo(salary_2012_df, 20)
+printDataFrameInfo(salary_2013_df, 20)
+printDataFrameInfo(salary_2014_df, 20)
+printDataFrameInfo(salary_2015_df, 20)
+
+# Combine all dataframes
+salary_total_df = rbind (salary_2007_df, salary_2008_df, salary_2009_df, salary_2010_df, salary_2011_df, salary_2012_df, salary_2013_df, salary_2014_df, salary_2015_df)
+printDataFrameInfo(salary_total_df, 20)
+
+# Create salary major dataframe
+salary_major_df = filter(salary_total_df, OCC_GROUP == "major")
+printDataFrameInfo(salary_major_df, 20)
+
+# Create occupation dataframe
+occupation_df = getOccupationData(salary_total_df)
+printDataFrameInfo(occupation_df, 20)
+
+# Create title dataframe
+title_df = getTitleData(salary_total_df)
+printDataFrameInfo(title_df, 20)
+
+# Create year dataframe
+year_df = getYearData(salary_total_df)
+printDataFrameInfo(year_df, 20)
+
+# Write all dataframes to CSV files
+# Write short year datasets for homework #06 to CSVs
+write.csv(get20Lines(salary_2007_df),'DATA/CSV/OUTPUT/salary_2007.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2008_df),'DATA/CSV/OUTPUT/salary_2008.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2009_df),'DATA/CSV/OUTPUT/salary_2009.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2010_df),'DATA/CSV/OUTPUT/salary_2010.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2011_df),'DATA/CSV/OUTPUT/salary_2011.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2012_df),'DATA/CSV/OUTPUT/salary_2012.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2013_df),'DATA/CSV/OUTPUT/salary_2013.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2014_df),'DATA/CSV/OUTPUT/salary_2014.csv', row.names=FALSE)
+write.csv(get20Lines(salary_2015_df),'DATA/CSV/OUTPUT/salary_2015.csv', row.names=FALSE)
+
+# Write salary_total_df dataframe to CSV
+write.csv(salary_total_df,'DATA/CSV/OUTPUT/salary_total_df.csv', row.names=FALSE)
+
+# Write salary_major_df dataframe to CSV
+write.csv(salary_major_df,'DATA/CSV/OUTPUT/salary_major_df.csv', row.names=FALSE)
+
+# Write occupation_df dataframe to CSV
+write.csv(occupation_df,'DATA/CSV/OUTPUT/occupation_df.csv', row.names=FALSE)
+
+# Write title_df dataframe to CSV
+write.csv(title_df,'DATA/CSV/OUTPUT/title_df.csv', row.names=FALSE)
+
+# Write year_df dataframe to CSV
+write.csv(year_df,'DATA/CSV/OUTPUT/year_df.csv', row.names=FALSE)
+```
